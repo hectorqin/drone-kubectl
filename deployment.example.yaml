@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  labels:
+    app: test
+spec:
+  type: NodePort
+  ports:
+    - port: 8088
+      targetPort: 8088
+      nodePort: 30030
+  selector:
+    app: test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pv-claim
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+  labels:
+    app: test
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  selector:
+    matchLabels:
+      app: test
+      role: api
+  replicas: 2 # tells deployment to run 2 pods matching the template
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: test
+        role: api
+        repo: ${DRONE_REPO_NAME}
+        branch: ${DRONE_COMMIT_BRANCH}
+        ref: ${DRONE_COMMIT_REF}
+        commit: ${DRONE_COMMIT_SHA}
+        short: ${DRONE_COMMIT_SHA:0:8}
+        started: $(date -d @$DRONE_BUILD_STARTED '+%Y-%m-%d %H:%M:%S')
+        duration: $(since $DRONE_BUILD_STARTED)
+    spec:
+      containers:
+      - name: test
+        image: notreal/repo:${DRONE_TAG#v}
+        workingDir: /app
+        ports:
+        - containerPort: 8088
+        volumeMounts:
+          - name: test-assets-persistent-storage
+            mountPath: /app/assets
+          - name: test-config
+            mountPath: /app/config.development.json
+            subPath: config.development.json
+      volumes:
+      - name: test-assets-persistent-storage
+        persistentVolumeClaim:
+          claimName: test-pv-claim
+      - name: test-config
+        configMap:
+          name: test-config
+          items:
+          - key: config-development-json
+            path: config.development.json
