@@ -1,6 +1,6 @@
-# Kubernetes plugin for drone.io written in shell language
+# Kubernetes plugin for drone.io[![Docker Repository on Quay](https://quay.io/repository/hectorqin/drone-kubectl/status "Docker Repository on Quay")](https://quay.io/repository/hectorqin/drone-kubectl)
 
-This plugin allows to update all Kubernetes resources, not only the deployment but anything within a yaml template file by using kubectl command
+This plugin allows to update all Kubernetes resources, not only the deployment but anything within a yaml template file by using kubectl command.
 
 ## Usage
 
@@ -12,7 +12,7 @@ In the template yaml file, you can just use variable substitution to replace wha
 ```yaml
     pipeline:
         deploy:
-            image: quay.io/honestbee/drone-kubernetes
+            image: quay.io/hectorqin/drone-kubectl
             kubernetes_template: deployment.example.yaml
             kubernetes_namespace: default
             secrets: [kubernetes_server, kubernetes_cert, kubernetes_token]
@@ -20,7 +20,7 @@ In the template yaml file, you can just use variable substitution to replace wha
 
 ## Helper example
 
-Helper must replace the $ to \$ to avoid the variable substitution in the statement phase.
+Helper must replace the $ to \\$ to avoid the variable substitution in the statement phase.
 
 ```shell
 since(){
@@ -76,13 +76,13 @@ Anything
 ## Required secrets
 
 ```bash
-    drone secret add --image=honestbee/drone-kubernetes \
+    drone secret add --image=hectorqin/drone-kubectl \
         your-user/your-repo KUBERNETES_SERVER https://mykubernetesapiserver
 
-    drone secret add --image=honestbee/drone-kubernetes \
+    drone secret add --image=hectorqin/drone-kubectl \
         your-user/your-repo KUBERNETES_CERT <base64 encoded CA.crt>
 
-    drone secret add --image=honestbee/drone-kubernetes \
+    drone secret add --image=hectorqin/drone-kubectl \
         your-user/your-repo KUBERNETES_TOKEN eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJrdWJ...
 ```
 
