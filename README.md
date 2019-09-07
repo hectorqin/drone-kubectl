@@ -8,14 +8,109 @@ This pipeline will update the resources of Kubernetes in the yaml file, which is
 
 In the template yaml file, you can just use variable substitution to replace whatever you want, you can even add your own template helper, and use it in the template.
 
+```yaml
+name: default
+
+kind: pipeline
+type: docker
+
+steps:
+- name: deploy
+  image: quay.io/hectorqin/drone-kubectl
+  settings:
+    kubernetes_template: deployment.example.yaml
+    kubernetes_namespace: default
+  environment:
+    kubernetes_server:
+      from_secret: kubernetes_server
+    kubernetes_cert:
+      from_secret: kubernetes_cert
+    kubernetes_token:
+      from_secret: kubernetes_token
+```
+
+## Template example
+
+Support bash syntax to generate the template. The method of 'since' in the below template is custom helper.
 
 ```yaml
-    pipeline:
-        deploy:
-            image: quay.io/hectorqin/drone-kubectl
-            kubernetes_template: deployment.example.yaml
-            kubernetes_namespace: default
-            secrets: [kubernetes_server, kubernetes_cert, kubernetes_token]
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  labels:
+    app: test
+spec:
+  type: NodePort
+  ports:
+    - port: 8088
+      targetPort: 8088
+      nodePort: 30030
+  selector:
+    app: test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pv-claim
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+  labels:
+    app: test
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  selector:
+    matchLabels:
+      app: test
+      role: api
+  replicas: 2 # tells deployment to run 2 pods matching the template
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: test
+        role: api
+        repo: ${DRONE_REPO_NAME}
+        branch: ${DRONE_COMMIT_BRANCH}
+        ref: ${DRONE_COMMIT_REF}
+        commit: ${DRONE_COMMIT_SHA}
+        short: ${DRONE_COMMIT_SHA:0:8}
+        started: $(date -d @$DRONE_BUILD_STARTED '+%Y-%m-%d %H:%M:%S')
+        duration: $(since $DRONE_BUILD_STARTED)
+    spec:
+      containers:
+      - name: test
+        image: notreal/repo:${DRONE_TAG#v}
+        workingDir: /app
+        ports:
+        - containerPort: 8088
+        volumeMounts:
+          - name: test-assets-persistent-storage
+            mountPath: /app/assets
+          - name: test-config
+            mountPath: /app/config.development.json
+            subPath: config.development.json
+      volumes:
+      - name: test-assets-persistent-storage
+        persistentVolumeClaim:
+          claimName: test-pv-claim
+      - name: test-config
+        configMap:
+          name: test-config
+          items:
+          - key: config-development-json
+            path: config.development.json
 ```
 
 ## Helper example
@@ -72,7 +167,6 @@ helper_file
 Anything
 : You can add anything you want to pass to the template file
 
-
 ## Required secrets
 
 ```bash
@@ -86,10 +180,11 @@ Anything
         your-user/your-repo KUBERNETES_TOKEN eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJrdWJ...
 ```
 
-When using TLS Verification, ensure Server Certificate used by kubernetes API server 
+When using TLS Verification, ensure Server Certificate used by kubernetes API server
 is signed for SERVER url ( could be a reason for failures if using aliases of kubernetes cluster )
 
 ## How to get token
+
 1. After deployment inspect you pod for name of (k8s) secret with **token** and **ca.crt**
 ```bash
 kubectl describe po/[ your pod name ] | grep SecretName | grep token
@@ -155,7 +250,7 @@ roleRef:
 Once the service account is created, you can extract the `ca.cert` and `token`
 parameters as mentioned for the default service account above:
 
-```
+``` bash
 kubectl -n web get secrets
 # Substitute XXXXX below with the correct one from the above command
 kubectl -n web get secret/drone-deploy-token-XXXXX -o yaml | egrep 'ca.crt:|token:'
